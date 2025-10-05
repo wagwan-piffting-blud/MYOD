@@ -1,0 +1,189 @@
+{% extends "index.html" %}
+
+{% block content %}
+    <h2>Originate Alert</h2>
+
+
+    <div class="panel">
+        <h3>Originate Alert</h3>
+        <form action="/originate-alert" method="post">
+            <div class="form-group">
+                <label for="style_select">Alert Type</label>
+                <select id="alert_type" name="alert_type" class="form-control">
+                    <!-- Options will be populated by JavaScript -->
+                </select>
+
+                <label for="fips_search">Search Areas</label>
+                <input type="text" id="fips_search" class="form-control" placeholder="Search by state or county...">
+
+                <label for="alert_areas">Alert Areas</label>
+                <select id="alert_areas" name="alert_areas" class="form-control" multiple size="8">
+                    <!-- Options will be populated by JavaScript -->
+                </select>
+
+                <label for="selected_areas">Selected Areas</label>
+                <div id="selected_areas_display" class="selected-areas-container">
+                    <!-- Selected areas will be shown here -->
+                </div>
+                <input type="hidden" id="selected_areas" name="selected_areas" value="">
+
+                <label for="alert_message">Alert Message</label>
+                <textarea id="alert_message" name="alert_message" class="form-control" rows="5"></textarea>
+
+                <label for="alert_duration">Alert Duration (minutes)</label>
+                <input type="number" id="alert_duration" name="alert_duration" class="form-control" value="60">
+
+
+
+
+            </div>
+            <button type="submit" class="btn">Originate</button>
+        </form>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const alertAreasSelect = document.getElementById('alert_areas');
+            const fipsSearch = document.getElementById('fips_search');
+            const selectedAreasDisplay = document.getElementById('selected_areas_display');
+            const selectedAreasInput = document.getElementById('selected_areas');
+            const alertTypeSelect = document.getElementById('alert_type');
+
+
+            // Store all FIPS data for filtering
+            let allFipsData = [];
+            let selectedAreas = new Map();
+
+            // Fetch FIPS data
+            fetch('/static/json/fips.json')
+                .then(response => response.json())
+                .then(data => {
+                    allFipsData = data.table.rows;
+                    populateFipsSelectOptions(allFipsData);
+                })
+                .catch(error => {
+                    console.error('Error loading fips data:', error);
+                });
+
+
+            // Load SAME codes from JSON file
+            fetch('/static/json/same_codes.json')
+                .then(response => response.json())
+                .then(data => {
+                    populateSAMECodeOptions(data);
+                })
+                .catch(error => {
+                    console.error('Error loading SAME codes:', error);
+                });
+
+            function populateSAMECodeOptions(data) {
+                for (const group in data) {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = group;
+                    data[group].forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.description;
+                        option.textContent = `${item.description} (${item.code})`;
+                        optgroup.appendChild(option);
+                    });
+                    alertTypeSelect.appendChild(optgroup);
+                }
+            }
+
+
+            // Search functionality
+            fipsSearch.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                const filteredData = allFipsData.filter(row =>
+                    row[1].toLowerCase().includes(searchTerm)
+                );
+                populateFipsSelectOptions(filteredData);
+            });
+
+            // Handle selection changes
+            alertAreasSelect.addEventListener('change', function() {
+                // Clear current display
+                updateSelectedAreas();
+            });
+
+            // Function to update the selected areas display and hidden input
+            function updateSelectedAreas() {
+                // Get all selected options
+                const selectedOptions = Array.from(alertAreasSelect.selectedOptions);
+
+                // Clear current display
+                selectedAreasDisplay.innerHTML = '';
+
+                // Add each selected option to the display
+                selectedOptions.forEach(option => {
+                    const areaCode = option.value;
+                    const areaName = option.textContent;
+                    selectedAreas.set(areaCode, areaName);
+                });
+
+                // Update the display and the hidden input
+                updateSelectedAreasDisplay();
+            }
+
+            // Function to populate the select options
+            function populateFipsSelectOptions(data) {
+                // Save current selections
+                const currentSelections = Array.from(alertAreasSelect.selectedOptions).map(opt => opt.value);
+
+                // Clear current options
+                alertAreasSelect.innerHTML = '';
+
+                // Add new options
+                data.forEach(row => {
+                    const option = document.createElement('option');
+                    option.value = row[0];
+                    option.textContent = row[1];
+
+                    // Preserve selection state
+                    if (currentSelections.includes(option.value)) {
+                        option.selected = true;
+                    }
+
+                    alertAreasSelect.appendChild(option);
+                });
+            }
+
+            // Function to update the visual display of selected areas
+            function updateSelectedAreasDisplay() {
+                selectedAreasDisplay.innerHTML = '';
+                const selectedValues = [];
+
+                selectedAreas.forEach((name, code) => {
+                    const areaElement = document.createElement('span');
+                    areaElement.className = 'selected-area';
+                    areaElement.innerHTML = `${name} <span class="remove-btn" data-code="${code}">×</span>`;
+                    selectedAreasDisplay.appendChild(areaElement);
+
+                    selectedValues.push(name);
+                });
+
+                // Update hidden input with comma-separated values
+                selectedAreasInput.value = selectedValues.join(';\n');
+
+                // Add event listeners to remove buttons
+                document.querySelectorAll('.remove-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const codeToRemove = this.getAttribute('data-code');
+                        selectedAreas.delete(codeToRemove);
+
+                        // Deselect the option in the select element
+                        for (const option of alertAreasSelect.options) {
+                            if (option.value === codeToRemove) {
+                                option.selected = false;
+                                break;
+                            }
+                        }
+
+                        updateSelectedAreasDisplay();
+                    });
+                });
+            }
+        });
+    </script>
+{% endblock %}

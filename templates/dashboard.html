@@ -1,0 +1,53 @@
+{% extends "index.html" %}
+    
+{% block content %}
+    <h2>Dashboard</h2>
+    <div class="panel">
+    <h3>System Status</h3>
+    <p>System Online: <span style="color: green;">✓</span></p>
+    <p>Audio Input: <span style="color: green;">✓</span></p>
+    <p>Network Connection: <span style="color: green;">✓</span></p>
+    <p>Last EAS Test: 2024-02-29 14:20:00 UTC</p>
+    </div>
+
+
+    <div class="panel">
+        <h3>System Configuration</h3>
+        <form action="/switch_style" method="post">
+            <div class="form-group">
+                <label for="style_select">Display Style:</label>
+                <select id="style_select" name="style_index" class="form-control">
+                    <option value="0">Style 1 (Original)</option>
+                    <option value="1">Style 2 (Black/White)</option>
+                    <option value="2">Style 3 (Black/Blue)</option>
+                </select>
+            </div>
+            <button type="submit" class="btn">Apply Style</button>
+        </form>
+    </div>
+
+    <div class="panel">
+        <h3>Message Management</h3>
+        <form action="/switch_page" method="post">
+            <div class="form-group">
+                <label for="page_select">Active Message:</label>
+                <select id="page_select" name="page" class="form-control">
+                    <option value="default">Default Pages</option>
+                    <option value="alert">Alert Pages</option>
+                </select>
+            </div>
+            <button type="submit" class="btn">Load Message</button>
+        </form>
+    </div>
+
+    <div class="panel">
+        <h3>System Control</h3>
+        <form action="/quit" method="post">
+            <button type="submit" class="btn">CG Shutdown</button>
+        </form>
+
+        <form action="/shutdown" method="post">
+            <button type="submit" class="btn">System Shutdown</button>
+        </form>
+    </div>
+{% endblock %}

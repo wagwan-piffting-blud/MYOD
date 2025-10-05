@@ -1,0 +1,11 @@
+<aside class="sidebar">
+    <h1>DASDEC Control</h1>
+    <ul>
+        <li><a href="/" {% if active_page == 'dashboard' %}class="active"{% endif %}>Dashboard</a></li>
+        <li><a href="#" {% if active_page == 'configuration' %}class="active"{% endif %}>Configuration</a></li>
+        <li><a href="#" {% if active_page == 'messages' %}class="active"{% endif %}>Messages</a></li>
+        <li><a href="originate" {% if active_page == 'originate' %}class="active"{% endif %}>Originate Alert</a></li>
+        <li><a href="#" {% if active_page == 'logs' %}class="active"{% endif %}>Logs</a></li>
+        <li><a href="#" {% if active_page == 'system' %}class="active"{% endif %}>System</a></li>
+    </ul>
+</aside>

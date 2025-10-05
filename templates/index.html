@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}DASDEC EAS Control Panel{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    {% include 'includes/sidebar.html' %}
+
+
+    <main class="main-content">
+       {% block content %}
+       {% endblock %}
+    </main>
+</body>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle all form submissions with AJAX
+        const forms = document.querySelectorAll('form');
+        forms.forEach(form => {
+            form.addEventListener('submit', function(event) {
+                event.preventDefault();
+                
+                const formData = new FormData(form);
+                fetch(form.action, {
+                    method: form.method,
+                    body: formData
+                })
+                .then(response => {
+                    // Optional: Add feedback to user that action was successful
+                    // You could show a temporary message here
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            });
+        });
+    });
+    </script>
+</html>
