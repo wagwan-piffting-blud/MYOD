@@ -86,5 +86,5 @@ sudo systemctl start /etc/systemd/system/myod.service
 This project is licensed under the GNU General Public License v3.0 License like the parent repo this fork is under - see the [LICENSE](LICENSE) file for details.
 
 ## Credits
-[peted-davis - WeatherFlow-PiConsole](https://github.com/peted-davis/WeatherFlow-PiConsole)
-[playsamay4 - Upstream MYOD repo this fork is based on](https://github.com/playsamay4/MYOD)
+- [peted-davis - WeatherFlow-PiConsole](https://github.com/peted-davis/WeatherFlow-PiConsole)
+- [playsamay4 - Upstream MYOD repo this fork is based on](https://github.com/playsamay4/MYOD)
