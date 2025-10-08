@@ -1,0 +1,91 @@
+{% extends "index.html" %}
+
+{% block content %}
+    <h2>Send Alert</h2>
+    <div class="panel">
+        <h3>Send Alert</h3>
+        <form action="/send" method="post" id="sendAlertForm">
+            <div class="form-group">
+                <label for="eas_header">EAS Header (ZCZC...):</label>
+                <input type="text" id="eas_header" name="eas_header" required>
+            </div>
+            <div class="form-group">
+                <label for="description">Optional Description:</label>
+                <input type="text" id="description" name="description">
+            </div>
+            <div class="form-group">
+                <label for="audio_link">Audio Link (URL):</label>
+                <input type="url" id="audio_link" name="audio_link">
+            </div>
+            <div class="form-group">
+                <label for="local_audio_file">Local Audio File Path:</label>
+                <input type="text" id="local_audio_file" name="local_audio_file">
+            </div>
+            <button type="submit">Send Alert</button>
+            <div id="formFeedback" class="form-feedback"></div>
+        </form>
+    </div>
+    <script>
+        let eas_header_input = document.getElementById("eas_header");
+        let form = document.getElementById("sendAlertForm");
+
+        form.addEventListener("submit", function(event) {
+            event.preventDefault();
+            let submit_button = form.querySelector("button[type='submit']");
+            submit_button.disabled = true;
+            let eas_header = eas_header_input.value.trim();
+            let eas_header_pattern = /^ZCZC-[A-Z]{3}-[A-Z]{3}-([0-9]{6}){1,31}\+[0-9]{4}-[0-9]{7}-[A-Za-z0-9 \/]{1,8}-$/;
+            let formFeedback = document.getElementById("formFeedback");
+            formFeedback.innerText = "";
+
+            if (!eas_header_pattern.test(eas_header)) {
+                event.preventDefault();
+                formFeedback.innerText = "Invalid EAS Header format. Please ensure it follows the correct structure.";
+                setTimeout(function() {
+                    submit_button.disabled = false;
+                    formFeedback.innerText = "";
+                }, 5000);
+                return;
+            }
+
+            if (form.checkValidity()) {
+                const formData = new FormData(form);
+
+                const response = fetch(form.action, {
+                    method: form.method,
+                    body: formData,
+                });
+
+                formFeedback.innerText = "Sending alert... Please wait.";
+
+                response.then(res => {
+                    if (res.ok) {
+                        formFeedback.innerText = "Alert sent successfully.";
+                        setTimeout(function() {
+                            form.reset();
+                            submit_button.disabled = false;
+                            formFeedback.innerText = "";
+                        }, 5000);
+                        return;
+                    }
+                }).catch(error => {
+                    console.error('Error:', error);
+                    formFeedback.innerText = "An error occurred while sending the alert. Please try again.";
+                    setTimeout(function() {
+                        form.reset();
+                        submit_button.disabled = false;
+                        formFeedback.innerText = "";
+                    }, 5000);
+                    return;
+                });
+            } else {
+                formFeedback.innerText = "Please fill out all required fields correctly.";
+                setTimeout(function() {
+                    submit_button.disabled = false;
+                    formFeedback.innerText = "";
+                }, 5000);
+                return;
+            }
+        });
+    </script>
+{% endblock %}

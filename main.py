@@ -5,71 +5,23 @@ import threading
 import queue
 import control_panel
 import os
+import tzlocal
 import re
 import socket
 import subprocess
 import traceback
-from Xlib import X, display
-from Xlib.protocol import event
-from Xlib.xobject.drawable import Window
 from EAS2Text import EAS2Text
 
+screen_width = 1280
+screen_height = 720
+pygame.init()
+pygame.display.set_caption("DASDEC")
+
+name = tzlocal.get_localzone_name()
+TIME_ZONE = name
+
 if os.name == "posix":
-    os.environ["DISPLAY"] = ":0"
-    os.environ["XAUTHORITY"] = "/home/pi/.Xauthority"
-    # os.environ["SDL_AUDIODRIVER"] = "pulseaudio"
-    # Use wmctrl to find the window ID of an existing window (wf-piconsole in our case)
-    wfpi_window_id_output = subprocess.check_output(["wmctrl", "-lG"]).decode("utf-8")
-    wfpi_window_id = None
-    for line in wfpi_window_id_output.splitlines():
-        if "weatherflow-piconsole" in line:
-            wfpi_window_id = line.split()[0]
-            break
-
-    if wfpi_window_id:
-        # Set the window to hidden
-        subprocess.run(["wmctrl", "-i", "-r", wfpi_window_id, "-b", "add,hidden"])
-
-    else:
-        print("Could not find the weatherflow-piconsole window to hide it.")
-
-    screen_width = 1280
-    screen_height = 720
-
-    d = display.Display(":0")
-    motif_wm_hints_atom = d.intern_atom('_MOTIF_WM_HINTS')
-    motif_hints_data = [2, 0, 0, 0, 0]
-    root = d.screen().root
-    screen = d.screen()
-    window = root.create_window(0, 0, screen_width, screen_height, 0,
-        screen.root_depth,
-        X.InputOutput,
-        background_pixel=screen.white_pixel,
-        event_mask=X.ExposureMask | X.StructureNotifyMask
-    )
-    window.change_property(
-        motif_wm_hints_atom,
-        motif_wm_hints_atom,  # Type of property
-        32,  # Format (bits per element)
-        motif_hints_data
-    )
-    window.set_wm_name("DASDEC")
-    window.set_wm_class("DASDEC", "DASDEC")
-    window.map()
-    d.sync()
-    d.flush()
-
-    pygame_window_id = window.id
-    os.environ["SDL_WINDOWID"] = str(pygame_window_id)
-    pygame.init()
-    pygame.display.set_caption("DASDEC")
     screen = pygame.display.set_mode((screen_width, screen_height), pygame.FULLSCREEN)
-
-    pygame.display.iconify()
-
-    subprocess.run(["wmctrl", "-i", "-r", str(pygame_window_id), "-b", "remove,hidden"])
-    subprocess.run(["wmctrl", "-i", "-r", str(wfpi_window_id), "-b", "remove,hidden"])
-    subprocess.run(["wmctrl", "-i", "-r", str(wfpi_window_id), "-b", "add,above"])
 else:
     screen = pygame.display.set_mode((screen_width, screen_height))
 
@@ -283,7 +235,7 @@ def get_system_info():
 command_queue = queue.Queue()
 
 def handle_commands():
-    global current_style_index, pages, num_pages, current_page
+    global current_style_index, pages, num_pages, current_page, TIME_ZONE
     try:
         while True:
             command = command_queue.get_nowait()  # Non-blocking get
@@ -307,15 +259,10 @@ def handle_commands():
                 pass
 
             elif command[0] == "DISPLAY_ALERT":
-                if os.name == "posix":
-                    # Hide the wf-piconsole window
-                    subprocess.run(["wmctrl", "-i", "-r", str(wfpi_window_id), "-b", "add,hidden"])
-                    subprocess.run(["wmctrl", "-i", "-r", str(pygame_window_id), "-b", "remove,hidden"])
-
                 time.sleep(3)
                 print("GUI: Displaying Alert")
                 try:
-                    msg = EAS2Text(command[1]["headers"])
+                    msg = EAS2Text(command[1]["headers"], timeZoneTZ=TIME_ZONE)
                 except Exception as e:
                     print("Error parsing EAS message:", e)
                     return
@@ -346,14 +293,47 @@ def handle_commands():
                 num_pages = len(pages)
                 current_page = 0
                 try:
-                    audio_deeplink = command[1]["audio_deeplink"]
-                    if audio_deeplink.startswith("http"):
-                        audio_file = "/tmp/eas_audio.wav"
-                        curl_command = ["curl", "-o", audio_file, "-L", audio_deeplink, "--retry", "3", "--retry-delay", "2", "--max-time", "15", "--header", "User-Agent: DASDEC-EAS-Client/1.0", "--header", f"Authorization: Bearer {os.environ.get('ASMARA_API_KEY', '')}"]
-                        subprocess.run(curl_command, check=True)
+                    audio_link = command[1]["audio_link"]
+                    local_audio_file = command[1]["local_audio_file"]
+
+                    if local_audio_file and os.path.isfile(local_audio_file):
+                        print("Playing local audio file.")
                         pygame.mixer.quit()
-                        subprocess.Popen(["paplay", "-d", "alsa_output.platform-fef00700.hdmi.hdmi-stereo", audio_file])
-                        print("Playing audio from Deeplink.")
+                        if os.name == "posix":
+                            subprocess.Popen(["paplay", local_audio_file])
+                        else:
+                            pygame.mixer.init()
+                            pygame.mixer.music.load(local_audio_file)
+                            pygame.mixer.music.play()
+                            pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
+                        try:
+                            ffprobe_command = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", local_audio_file]
+                            audio_length = float(subprocess.check_output(ffprobe_command).strip())
+                            print(f"Audio length: {audio_length} seconds")
+                            threading.Timer(audio_length + 1, lambda: clear_alert()).start()
+                        except Exception as e:
+                            print("Error getting audio length:", e)
+                            threading.Timer(300.0, lambda: clear_alert()).start()
+
+                    elif audio_link and audio_link.startswith("http"):
+                        if os.name == "posix":
+                            audio_file = "/tmp/eas_audio.unknown"
+                        else:
+                            audio_file = os.path.join(os.getcwd(), "eas_audio.unknown")
+                        curl_command = ["curl", "-o", audio_file, "-L", audio_link, "--retry", "3", "--retry-delay", "2", "--max-time", "15", "--header", "User-Agent: DASDEC-EAS-Client/1.0"]
+                        subprocess.run(curl_command, check=True)
+                        ffmpeg_command = ["ffmpeg", "-y", "-i", audio_file, "-f", "wav", audio_file + ".wav"]
+                        subprocess.run(ffmpeg_command, check=True)
+                        audio_file = audio_file + ".wav"
+                        pygame.mixer.quit()
+                        print("Playing audio from link.")
+                        if os.name == "posix":
+                            subprocess.Popen(["paplay", audio_file])
+                        else:
+                            pygame.mixer.init()
+                            pygame.mixer.music.load(audio_file)
+                            pygame.mixer.music.play()
+                            pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
                         try:
                             ffprobe_command = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", audio_file]
                             audio_length = float(subprocess.check_output(ffprobe_command).strip())
@@ -362,8 +342,9 @@ def handle_commands():
                         except Exception as e:
                             print("Error getting audio length:", e)
                             threading.Timer(300.0, lambda: clear_alert()).start()
+
                     else:
-                        print("Audio Deeplink is not a valid URL.")
+                        print("No audio link or file provided.")
                 except Exception as e:
                     print("Error loading audio:", traceback.format_exc())
                 last_page_switch_time = time.time()
@@ -386,12 +367,8 @@ def clear_alert():
     pages = defaultPages
     num_pages = len(pages)
     current_page = 0
+    pygame.mixer.quit()
     last_page_switch_time = time.time()
-
-    if os.name == "posix":
-        # Hide the Pygame window and show the wf-piconsole window
-        subprocess.run(["wmctrl", "-i", "-r", str(pygame_window_id), "-b", "add,hidden"])
-        subprocess.run(["wmctrl", "-i", "-r", str(wfpi_window_id), "-b", "remove,hidden"])
 
 # Initialize colors based on the starting style
 set_style(styles[current_style_index])

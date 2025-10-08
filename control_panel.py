@@ -24,6 +24,10 @@ def index():
 def originate():
     return render_template("originate.html", active_page="originate")
 
+@app.route("/send_alert")
+def send_alert():
+    return render_template("send_alert.html", active_page="send_alert")
+
 @app.route("/switch_style", methods=["POST"])
 def switch_style():
     style_index = int(request.form["style_index"])  # Get style from Form Input
@@ -61,8 +65,16 @@ def send():
     # Something has sent us the header
     headers = request.form["eas_header"]
     description = request.form["description"]
-    audio_deeplink = request.form["audio_deeplink"]
-    command_queue.put(("DISPLAY_ALERT", {"headers": headers, "description": description, "audio_deeplink": audio_deeplink}))
+    try:
+        audio_link = request.form["audio_link"]
+    except KeyError as e:
+        audio_link = None
+    try:
+        local_audio_file = request.form["local_audio_file"]
+    except KeyError as e:
+        local_audio_file = None
+
+    command_queue.put(("DISPLAY_ALERT", {"headers": headers, "description": description, "audio_link": audio_link, "local_audio_file": local_audio_file}))
     return "OK"
 
 @app.route("/clear", methods=["POST"])
