@@ -299,13 +299,10 @@ def handle_commands():
                     if local_audio_file and os.path.isfile(local_audio_file):
                         print("Playing local audio file.")
                         pygame.mixer.quit()
-                        if os.name == "posix":
-                            subprocess.Popen(["paplay", local_audio_file])
-                        else:
-                            pygame.mixer.init()
-                            pygame.mixer.music.load(local_audio_file)
-                            pygame.mixer.music.play()
-                            pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
+                        pygame.mixer.init()
+                        pygame.mixer.music.load(local_audio_file)
+                        pygame.mixer.music.play()
+                        pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
                         try:
                             ffprobe_command = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", local_audio_file]
                             audio_length = float(subprocess.check_output(ffprobe_command).strip())
@@ -327,13 +324,10 @@ def handle_commands():
                         audio_file = audio_file + ".wav"
                         pygame.mixer.quit()
                         print("Playing audio from link.")
-                        if os.name == "posix":
-                            subprocess.Popen(["paplay", audio_file])
-                        else:
-                            pygame.mixer.init()
-                            pygame.mixer.music.load(audio_file)
-                            pygame.mixer.music.play()
-                            pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
+                        pygame.mixer.init()
+                        pygame.mixer.music.load(audio_file)
+                        pygame.mixer.music.play()
+                        pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
                         try:
                             ffprobe_command = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", audio_file]
                             audio_length = float(subprocess.check_output(ffprobe_command).strip())
