@@ -36,7 +36,7 @@ The MYOD API is mostly unfinished upstream, but you can use the following endpoi
 - `POST /send`: Send an alert to the DASDEC. The body should be x-www-form-urlencoded with the following fields:
     - `eas_header`: The EAS header (e.g. "ZCZC-WXR-RWT-123456+0100-1234567-SENDER-")
     - `description`: An optional description included after the alert text (e.g. "This is a test alert.")
-    - `audio_deeplink`: The URL of the audio file to play. This should be a direct link to an audio file (e.g. "https://example.com/alert.mp3"). NOTE: This was mostly built for authenticated endpoints like the one my other (currently private) repo, ASMARA-Rust-Native uses, so you may need to modify the code to work with unauthenticated endpoints. It's just a cURL command, so you can easily modify it to your needs.
+    - `audio_deeplink`: The URL of the audio file to play. This should be a direct link to an audio file (e.g. "https://example.com/alert.mp3"). NOTE: This was mostly built for authenticated endpoints like the one my other repo, [ASMARA_Rust](https://github.com/wagwan-piffting-blud/ASMARA_Rust), uses, so you may need to modify the code to work with unauthenticated endpoints. It's just a cURL command, so you can easily modify it to your needs.
 - `POST /clear`: Clear the current alert and stop any playing audio.
 - `POST /switch_style`: Switch the DASDEC style. The body should be x-www-form-urlencoded with the following field:
     - `style_index`: The style to switch to (0-2). 0 is the default style, 1 is the all black/white style, and 2 is the black/blue style.
@@ -86,5 +86,5 @@ sudo systemctl start /etc/systemd/system/myod.service
 This project is licensed under the GNU General Public License v3.0 License like the parent repo this fork is under - see the [LICENSE](LICENSE) file for details.
 
 ## Credits
-- [peted-davis - WeatherFlow-PiConsole](https://github.com/peted-davis/WeatherFlow-PiConsole)
+- [peted-davis - WeatherFlow-PiConsole](https://github.com/peted-davis/WeatherFlow_PiConsole)
 - [playsamay4 - Upstream MYOD repo this fork is based on](https://github.com/playsamay4/MYOD)
