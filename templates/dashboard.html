@@ -1,13 +1,12 @@
 {% extends "index.html" %}
-    
+
 {% block content %}
     <h2>Dashboard</h2>
     <div class="panel">
     <h3>System Status</h3>
-    <p>System Online: <span style="color: green;">✓</span></p>
-    <p>Audio Input: <span style="color: green;">✓</span></p>
-    <p>Network Connection: <span style="color: green;">✓</span></p>
-    <p>Last EAS Test: 2024-02-29 14:20:00 UTC</p>
+    <p>System Online: <span style="{% if system_status == '✓' %}color: green;{% else %}color: red;{% endif %}">{{ system_status }}</span></p>
+    <p>Audio Input: <span style="{% if audio_status == '✓' %}color: green;{% else %}color: red;{% endif %}">{{ audio_status }}</span></p>
+    <p>Network Connection: <span style="{% if network_status == '✓' %}color: green;{% else %}color: red;{% endif %}">{{ network_status }}</span></p>
     </div>
 
 
@@ -44,10 +43,6 @@
         <h3>System Control</h3>
         <form action="/quit" method="post">
             <button type="submit" class="btn">CG Shutdown</button>
-        </form>
-
-        <form action="/shutdown" method="post">
-            <button type="submit" class="btn">System Shutdown</button>
         </form>
     </div>
 {% endblock %}

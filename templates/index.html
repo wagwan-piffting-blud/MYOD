@@ -8,8 +8,6 @@
 </head>
 <body>
     {% include 'includes/sidebar.html' %}
-
-
     <main class="main-content">
        {% block content %}
        {% endblock %}
@@ -23,7 +21,10 @@
         forms.forEach(form => {
             form.addEventListener('submit', function(event) {
                 event.preventDefault();
-                
+                if (window.isSubmitting) {
+                    return; // Prevent multiple submissions
+                }
+                window.isSubmitting = true;
                 const formData = new FormData(form);
                 fetch(form.action, {
                     method: form.method,

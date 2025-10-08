@@ -28,9 +28,18 @@
     <script>
         let eas_header_input = document.getElementById("eas_header");
         let form = document.getElementById("sendAlertForm");
+        window.isSubmitting = false;
 
-        form.addEventListener("submit", function(event) {
+        form.addEventListener("submit", async function(event) {
+            console.debug("sendAlertForm submit handler invoked");
             event.preventDefault();
+
+            if (window.isSubmitting) {
+                console.debug("Already submitting — ignoring duplicate submit");
+                return;
+            }
+            window.isSubmitting = true;
+
             let submit_button = form.querySelector("button[type='submit']");
             submit_button.disabled = true;
             let eas_header = eas_header_input.value.trim();
@@ -39,52 +48,45 @@
             formFeedback.innerText = "";
 
             if (!eas_header_pattern.test(eas_header)) {
-                event.preventDefault();
                 formFeedback.innerText = "Invalid EAS Header format. Please ensure it follows the correct structure.";
-                setTimeout(function() {
-                    submit_button.disabled = false;
-                    formFeedback.innerText = "";
-                }, 5000);
+                submit_button.disabled = false;
+                window.isSubmitting = false;
+                setTimeout(function() { formFeedback.innerText = ""; }, 5000);
                 return;
             }
 
-            if (form.checkValidity()) {
-                const formData = new FormData(form);
+            if (!form.checkValidity()) {
+                formFeedback.innerText = "Please fill out all required fields correctly.";
+                submit_button.disabled = false;
+                window.isSubmitting = false;
+                setTimeout(function() { formFeedback.innerText = ""; }, 5000);
+                return;
+            }
 
-                const response = fetch(form.action, {
+            const formData = new FormData(form);
+            formFeedback.innerText = "Sending alert... Please wait.";
+
+            try {
+                const res = await fetch(form.action, {
                     method: form.method,
                     body: formData,
                 });
 
-                formFeedback.innerText = "Sending alert... Please wait.";
-
-                response.then(res => {
-                    if (res.ok) {
-                        formFeedback.innerText = "Alert sent successfully.";
-                        setTimeout(function() {
-                            form.reset();
-                            submit_button.disabled = false;
-                            formFeedback.innerText = "";
-                        }, 5000);
-                        return;
-                    }
-                }).catch(error => {
-                    console.error('Error:', error);
-                    formFeedback.innerText = "An error occurred while sending the alert. Please try again.";
+                if (res.ok) {
+                    formFeedback.innerText = "Alert sent successfully.";
                     setTimeout(function() {
                         form.reset();
-                        submit_button.disabled = false;
                         formFeedback.innerText = "";
+                        submit_button.disabled = false;
+                        window.isSubmitting = false;
                     }, 5000);
-                    return;
-                });
-            } else {
-                formFeedback.innerText = "Please fill out all required fields correctly.";
-                setTimeout(function() {
-                    submit_button.disabled = false;
-                    formFeedback.innerText = "";
-                }, 5000);
-                return;
+                } else {
+                    console.error("Non-OK response:", res.status, res.statusText);
+                    formFeedback.innerText = "Failed to send alert. Server returned " + res.status;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                formFeedback.innerText = "An error occurred while sending the alert. Please try again.";
             }
         });
     </script>

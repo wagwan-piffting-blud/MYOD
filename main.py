@@ -1,15 +1,14 @@
-import sys
-import pygame
-import time
-import threading
-import queue
-import control_panel
 import os
-import tzlocal
 import re
+import time
+import queue
+import pygame
 import socket
-import subprocess
+import tzlocal
+import threading
 import traceback
+import subprocess
+import control_panel
 from EAS2Text import EAS2Text
 
 screen_width = 1280
@@ -167,7 +166,15 @@ def audio_finished_callback():
     audio_finished = True
     print("Audio finished playing.")
 
-import re
+def play_audio(file_path):
+    try:
+        pygame.mixer.quit()
+        pygame.mixer.init()
+        pygame.mixer.music.load(file_path)
+        pygame.mixer.music.play()
+        pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
+    except Exception as e:
+        print("Error playing audio:", e)
 
 def format_eas_message(eas_text):
     MAX_LINE_LENGTH = 35
@@ -298,11 +305,8 @@ def handle_commands():
 
                     if local_audio_file and os.path.isfile(local_audio_file):
                         print("Playing local audio file.")
-                        pygame.mixer.quit()
-                        pygame.mixer.init()
-                        pygame.mixer.music.load(local_audio_file)
-                        pygame.mixer.music.play()
-                        pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
+                        thread = threading.Thread(target=play_audio, args=(local_audio_file,))
+                        thread.start()
                         try:
                             ffprobe_command = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", local_audio_file]
                             audio_length = float(subprocess.check_output(ffprobe_command).strip())
@@ -322,12 +326,9 @@ def handle_commands():
                         ffmpeg_command = ["ffmpeg", "-y", "-i", audio_file, "-f", "wav", audio_file + ".wav"]
                         subprocess.run(ffmpeg_command, check=True)
                         audio_file = audio_file + ".wav"
-                        pygame.mixer.quit()
                         print("Playing audio from link.")
-                        pygame.mixer.init()
-                        pygame.mixer.music.load(audio_file)
-                        pygame.mixer.music.play()
-                        pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
+                        thread = threading.Thread(target=play_audio, args=(audio_file,))
+                        thread.start()
                         try:
                             ffprobe_command = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", audio_file]
                             audio_length = float(subprocess.check_output(ffprobe_command).strip())
@@ -336,12 +337,13 @@ def handle_commands():
                         except Exception as e:
                             print("Error getting audio length:", e)
                             threading.Timer(300.0, lambda: clear_alert()).start()
-
                     else:
                         print("No audio link or file provided.")
+
                 except Exception as e:
                     print("Error loading audio:", traceback.format_exc())
                 last_page_switch_time = time.time()
+
             elif command[0] == "CLEAR_ALERT":
                 print("GUI: Clearing Alert")
                 threading.Timer(3.0, lambda: clear_alert()).start()
@@ -349,9 +351,6 @@ def handle_commands():
               print("GUI: Quitting application")
               pygame.quit()
               exit()
-            elif command[0] == "SHUTDOWN":
-              print("GUI: Shutting down system")
-              # os.system("sudo shutdown now")
             command_queue.task_done() # Mark as handled
     except queue.Empty:
         pass # No commands, continue
@@ -371,91 +370,101 @@ set_style(styles[current_style_index])
 control_panel.start_control_panel(command_queue)
 
 # main loop
-running = True
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        elif event.type == pygame.USEREVENT + 1:  # Audio finished event
-            audio_finished_callback()
-        elif event.type == pygame.KEYDOWN: # Switch Style
-            if event.key == pygame.K_SPACE:  # Press space to switch styles
-                current_style_index = (current_style_index + 1) % len(styles)
-                set_style(styles[current_style_index]) # Update global colors
-            elif event.key == pygame.K_ESCAPE:
+try:
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
                 running = False
-            elif event.key == pygame.K_i:
-                info_lines = get_system_info()
-                info_display_time = time.time()
-                info_visible = True
-            elif event.key == pygame.K_o:
+            elif event.type == pygame.USEREVENT + 1:  # Audio finished event
+                audio_finished_callback()
+            elif event.type == pygame.KEYDOWN: # Switch Style
+                if event.key == pygame.K_SPACE:  # Press space to switch styles
+                    current_style_index = (current_style_index + 1) % len(styles)
+                    set_style(styles[current_style_index]) # Update global colors
+                elif event.key == pygame.K_ESCAPE:
+                    running = False
+                elif event.key == pygame.K_i:
+                    info_lines = get_system_info()
+                    info_display_time = time.time()
+                    info_visible = True
+                elif event.key == pygame.K_o:
+                    info_visible = False
+
+        # Check if it's time to switch to the next page
+        current_time = time.time()
+        if current_time - last_page_switch_time >= page_display_duration:
+            current_page = (current_page + 1) % num_pages  # Cycle through pages
+            last_page_switch_time = current_time
+
+        # ---- Handle commands from the GUI  ----
+        handle_commands()
+
+        # Clear the screen with margin color
+        screen.fill(margin_color)
+
+        # Calculate the inner rectangle's coordinates with different margins
+        inner_rect_x = margin_width_horizontal
+        inner_rect_y = margin_width_vertical
+        inner_rect_width = screen_width - 2 * margin_width_horizontal
+        inner_rect_height = screen_height - 2 * margin_width_vertical
+
+        # Draw the background color inside the margin
+        pygame.draw.rect(screen, background_color, (inner_rect_x, inner_rect_y, inner_rect_width, inner_rect_height))
+
+        # Draw the border
+        pygame.draw.rect(screen, border_color, (inner_rect_x, inner_rect_y, inner_rect_width, inner_rect_height), border_width)
+
+        # Render and blit the text for the current page
+        text_positions = render_text(pages[current_page])  # Get text for current page
+        for text_surface, text_rect in text_positions:
+            screen.blit(text_surface, text_rect)
+
+        if info_visible:
+            # Hide the overlay after 10 seconds
+            if time.time() - info_display_time > 10:
                 info_visible = False
+            else:
+                # Set up font for the info text
+                info_font_size = 28
+                try:
+                    info_font = pygame.font.Font("luximb.ttf", info_font_size)
+                except FileNotFoundError:
+                    info_font = pygame.font.Font(None, info_font_size)
 
-    # Check if it's time to switch to the next page
-    current_time = time.time()
-    if current_time - last_page_switch_time >= page_display_duration:
-        current_page = (current_page + 1) % num_pages  # Cycle through pages
-        last_page_switch_time = current_time
+                # Calculate overlay size based on number of lines
+                line_height = info_font_size + 5
+                num_lines = len(info_lines)
+                overlay_width = 600
+                overlay_height = 20 + num_lines * line_height + 20  # 20px padding top/bottom
 
-    # ---- Handle commands from the GUI  ----
-    handle_commands()
+                overlay = pygame.Surface((overlay_width, overlay_height), pygame.SRCALPHA)
+                overlay.fill((10, 10, 10, 210)) # Dark, semi-transparent background
 
-    # Clear the screen with margin color
-    screen.fill(margin_color)
+                # Render each line of info text onto the overlay
+                line_y = 20
+                for line in info_lines:
+                    text_surf = info_font.render(line, True, (255, 255, 255))
+                    overlay.blit(text_surf, (20, line_y))
+                    line_y += line_height
 
-    # Calculate the inner rectangle's coordinates with different margins
-    inner_rect_x = margin_width_horizontal
-    inner_rect_y = margin_width_vertical
-    inner_rect_width = screen_width - 2 * margin_width_horizontal
-    inner_rect_height = screen_height - 2 * margin_width_vertical
+                # Position and draw the overlay in the center of the screen
+                overlay_x = (screen_width - overlay_width) // 2
+                overlay_y = (screen_height - overlay_height) // 2
+                screen.blit(overlay, (overlay_x, overlay_y))
 
-    # Draw the background color inside the margin
-    pygame.draw.rect(screen, background_color, (inner_rect_x, inner_rect_y, inner_rect_width, inner_rect_height))
+        # Update the display
+        pygame.display.flip()
 
-    # Draw the border
-    pygame.draw.rect(screen, border_color, (inner_rect_x, inner_rect_y, inner_rect_width, inner_rect_height), border_width)
-
-    # Render and blit the text for the current page
-    text_positions = render_text(pages[current_page])  # Get text for current page
-    for text_surface, text_rect in text_positions:
-        screen.blit(text_surface, text_rect)
-
-    if info_visible:
-        # Hide the overlay after 10 seconds
-        if time.time() - info_display_time > 10:
-            info_visible = False
-        else:
-            # Set up font for the info text
-            info_font_size = 28
-            try:
-                info_font = pygame.font.Font("luximb.ttf", info_font_size)
-            except FileNotFoundError:
-                info_font = pygame.font.Font(None, info_font_size)
-
-            # Calculate overlay size based on number of lines
-            line_height = info_font_size + 5
-            num_lines = len(info_lines)
-            overlay_width = 600
-            overlay_height = 20 + num_lines * line_height + 20  # 20px padding top/bottom
-
-            overlay = pygame.Surface((overlay_width, overlay_height), pygame.SRCALPHA)
-            overlay.fill((10, 10, 10, 210)) # Dark, semi-transparent background
-
-            # Render each line of info text onto the overlay
-            line_y = 20
-            for line in info_lines:
-                text_surf = info_font.render(line, True, (255, 255, 255))
-                overlay.blit(text_surf, (20, line_y))
-                line_y += line_height
-
-            # Position and draw the overlay in the center of the screen
-            overlay_x = (screen_width - overlay_width) // 2
-            overlay_y = (screen_height - overlay_height) // 2
-            screen.blit(overlay, (overlay_x, overlay_y))
-
-    # Update the display
-    pygame.display.flip()
-
-    time.sleep(0.01)  # Small delay to prevent excessive CPU usage
-
-sys.exit(0)
+        time.sleep(0.01)
+except KeyboardInterrupt:
+    clear_alert()
+    running = False
+    print("Exiting on keyboard interrupt.")
+    pygame.quit()
+    os._exit(0)
+finally:
+    clear_alert()
+    running = False
+    pygame.quit()
+    os._exit(0)

@@ -1,9 +1,17 @@
 # control_panel.py
 from flask import Flask, render_template, request
+import flask
+import soundcard as sc
 import threading
 import queue
 
 app = Flask(__name__)
+
+@app.context_processor
+def example():
+    audio_status = '✓' if sc.all_speakers() else '✕'
+    network_status = '✓' if flask.request.remote_addr else '✕'
+    return dict(system_status='✓', audio_status=audio_status, network_status=network_status)
 
 app.debug = False
 app.use_reloader = False
@@ -53,11 +61,6 @@ def originate_alert():
 @app.route("/quit", methods=["POST"])
 def quit_app():
     command_queue.put((QUIT,))
-    return "OK"
-
-@app.route("/shutdown", methods=["POST"])
-def shutdown():
-    command_queue.put(("SHUTDOWN",))
     return "OK"
 
 @app.route("/send", methods=["POST"])
