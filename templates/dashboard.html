@@ -4,11 +4,10 @@
     <h2>Dashboard</h2>
     <div class="panel">
     <h3>System Status</h3>
-    <p>System Online: <span style="{% if system_status == '✓' %}color: green;{% else %}color: red;{% endif %}">{{ system_status }}</span></p>
-    <p>Audio Input: <span style="{% if audio_status == '✓' %}color: green;{% else %}color: red;{% endif %}">{{ audio_status }}</span></p>
-    <p>Network Connection: <span style="{% if network_status == '✓' %}color: green;{% else %}color: red;{% endif %}">{{ network_status }}</span></p>
+    <p>System Online: <span id="system_status" style="{% if system_status == '✓' %}color: green;{% else %}color: red;{% endif %}">{{ system_status }}</span></p>
+    <p>Audio Input: <span id="audio_status" style="{% if audio_status == '✓' %}color: green;{% else %}color: red;{% endif %}">{{ audio_status }}</span></p>
+    <p>Network Connection: <span id="network_status" style="{% if network_status == '✓' %}color: green;{% else %}color: red;{% endif %}">{{ network_status }}</span></p>
     </div>
-
 
     <div class="panel">
         <h3>System Configuration</h3>
@@ -45,4 +44,34 @@
             <button type="submit" class="btn">CG Shutdown</button>
         </form>
     </div>
+
+    <script>
+        system_status = document.getElementById("system_status");
+        audio_status = document.getElementById("audio_status");
+        network_status = document.getElementById("network_status");
+
+        function updateStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    system_status.innerText = data.system_status;
+                    system_status.style.color = data.system_status === '✓' ? 'green' : 'red';
+                    audio_status.innerText = data.audio_status;
+                    audio_status.style.color = data.audio_status === '✓' ? 'green' : 'red';
+                    network_status.innerText = data.network_status;
+                    network_status.style.color = data.network_status === '✓' ? 'green' : 'red';
+                })
+                .catch(error => {
+                    console.error('Error fetching status:', error);
+                    system_status.innerText = '✕';
+                    system_status.style.color = 'red';
+                    audio_status.innerText = '✕';
+                    audio_status.style.color = 'red';
+                    network_status.innerText = '✕';
+                    network_status.style.color = 'red';
+                });
+        }
+
+        setInterval(updateStatus, 1000);
+    </script>
 {% endblock %}

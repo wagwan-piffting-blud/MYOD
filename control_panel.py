@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 @app.context_processor
 def example():
-    audio_status = '✓' if sc.all_speakers() else '✕'
+    audio_status = '✓' if len(sc.all_speakers()) > 0 else '✕'
     network_status = '✓' if flask.request.remote_addr else '✕'
     return dict(system_status='✓', audio_status=audio_status, network_status=network_status)
 
@@ -27,6 +27,10 @@ command_queue = None  # Will be set by the main Pygame application
 @app.route("/")
 def index():
     return render_template("dashboard.html", active_page="dashboard")
+
+@app.route("/status")
+def status():
+    return example()
 
 @app.route("/originate")
 def originate():
