@@ -18,7 +18,7 @@ Make Your Own DASDEC (MYOD) is an open-source project that allows users to build
 ## Installation
 1. Clone the repository:
     ```bash
-    git clone https://github.com/wagwan-piffting-blud/MYOD.git
+    git clone -b cross-platform-with-audio https://github.com/wagwan-piffting-blud/MYOD.git
     cd MYOD
     ```
 2. Install the required Python libraries (preferably in a [virtual environment](https://docs.python.org/3/tutorial/venv.html)):
