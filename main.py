@@ -2,14 +2,19 @@ import os
 import re
 import time
 import queue
-import pygame
 import socket
-import tzlocal
 import threading
 import traceback
 import subprocess
-import control_panel
+
+import tzlocal
 from EAS2Text import EAS2Text
+from dotenv import load_dotenv
+import pygame
+import control_panel
+
+
+load_dotenv()  # Load environment variables from .env file
 
 screen_width = 1280
 screen_height = 720
@@ -164,7 +169,7 @@ def audio_finished_callback():
     """Callback function executed when the audio finishes playing."""
     global audio_finished
     audio_finished = True
-    print("Audio finished playing.")
+    print("Audio finished playing. Back to default page.")
 
 def play_audio(file_path):
     try:
@@ -237,6 +242,51 @@ def get_system_info():
             lines.append("Gateway: N/A")
     return lines
 
+def looks_like_plaintext(data):
+    if callable(data):
+        data = data(4096)
+    elif hasattr(data, "read"):
+        data = data.read(4096)
+
+    if data is None:
+        return True
+    if isinstance(data, str):
+        data = data.encode("utf-8", "ignore")
+    elif isinstance(data, memoryview):
+        data = data.tobytes()
+    elif not isinstance(data, (bytes, bytearray)):
+        return False
+
+    sample = bytes(data[:4096])
+    if not sample:
+        return True
+    if b"\x00" in sample:
+        return False
+
+    head = sample[:256].lstrip().lower()
+    if (
+        head.startswith(b"<!doctype html")
+        or head.startswith(b"<html")
+        or head.startswith(b"<?xml")
+        or head.startswith(b"{")
+        or head.startswith(b"[")
+        or b"<body" in head
+        or b"<title" in head
+    ):
+        return True
+
+    printable = 0
+    control = 0
+    for b in sample:
+        if b in (9, 10, 13) or 32 <= b <= 126:
+            printable += 1
+        elif b < 32:
+            control += 1
+
+    if control * 10 > len(sample) * 3:
+        return False
+    return printable * 10 >= len(sample) * 9
+
 # ----  Command Queue and Handling  ----
 
 command_queue = queue.Queue()
@@ -294,7 +344,7 @@ def handle_commands():
                         msg.endTime.strftime("%I:%M %p") +
                         msgFrom +
                         desc)
-                print(text)
+                # print(text)
                 pages = format_eas_message(text)
                 print(pages)
                 num_pages = len(pages)
@@ -321,9 +371,17 @@ def handle_commands():
                             audio_file = "/tmp/eas_audio.unknown"
                         else:
                             audio_file = os.path.join(os.getcwd(), "eas_audio.unknown")
-                        curl_command = ["curl", "-o", audio_file, "-L", audio_link, "--retry", "3", "--retry-delay", "2", "--max-time", "15", "--header", "User-Agent: DASDEC-EAS-Client/1.0"]
+                        if os.environ.get("USE_AUTH"):
+                            print("Using authentication for audio download.")
+                            curl_command = ["curl", "--silent", "-o", audio_file, "-L", audio_link, "--retry", "3", "--retry-delay", "2", "--max-time", "15", "--header", "User-Agent: DASDEC-EAS-Client/1.0", "--header", "Authorization: Bearer " + os.environ.get("AUTH_TOKEN", "")]
+                        else:
+                            curl_command = ["curl", "--silent", "-o", audio_file, "-L", audio_link, "--retry", "3", "--retry-delay", "2", "--max-time", "15", "--header", "User-Agent: DASDEC-EAS-Client/1.0"]
                         subprocess.run(curl_command, check=True)
-                        ffmpeg_command = ["ffmpeg", "-y", "-i", audio_file, "-f", "wav", audio_file + ".wav"]
+                        with open (audio_file, "rb") as f:
+                            if looks_like_plaintext(f.read):
+                                print("Downloaded audio file appears to be text, not audio. Maybe the server did not serve the audio correctly? Skipping playback.")
+                                return
+                        ffmpeg_command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", audio_file, "-f", "wav", audio_file + ".wav"]
                         subprocess.run(ffmpeg_command, check=True)
                         audio_file = audio_file + ".wav"
                         print("Playing audio from link.")
