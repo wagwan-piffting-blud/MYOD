@@ -3,9 +3,11 @@ import re
 import time
 import queue
 import socket
+import base64
 import threading
 import traceback
 import subprocess
+import binascii
 
 import tzlocal
 from EAS2Text import EAS2Text
@@ -181,6 +183,66 @@ def play_audio(file_path):
     except Exception as e:
         print("Error playing audio:", e)
 
+def _decode_raw_audio(raw_audio):
+    if not raw_audio:
+        return None, None
+
+    mime_type = "audio/wav"
+    encoded_audio = raw_audio.strip()
+
+    if encoded_audio.startswith("data:"):
+        header, encoded_audio = encoded_audio.split(",", 1)
+        mime_part = header[5:].split(";", 1)[0].strip()
+        if mime_part:
+            mime_type = mime_part
+
+    try:
+        audio_data = base64.b64decode(encoded_audio, validate=True)
+    except binascii.Error:
+        # Keep compatibility with non-strict base64 payloads.
+        audio_data = base64.b64decode(encoded_audio)
+
+    return mime_type, audio_data
+
+def _audio_extension_for_mime(mime_type):
+    normalized = (mime_type or "").lower()
+    if normalized in ("audio/wav", "audio/x-wav", "audio/wave"):
+        return "wav"
+    if normalized in ("audio/mpeg", "audio/mp3"):
+        return "mp3"
+    if normalized == "audio/ogg":
+        return "ogg"
+    if normalized == "audio/flac":
+        return "flac"
+    if normalized == "audio/aac":
+        return "aac"
+    if normalized in ("audio/mp4", "audio/m4a"):
+        return "m4a"
+    return "bin"
+
+def _prepare_playable_audio_file(audio_file):
+    playable_file = "temp_alert_audio_playback.wav"
+    ffmpeg_command = [
+        "ffmpeg",
+        "-y",
+        "-loglevel",
+        "error",
+        "-i",
+        audio_file,
+        "-ac",
+        "2",
+        "-ar",
+        "44100",
+        "-f",
+        "wav",
+        playable_file,
+    ]
+    try:
+        subprocess.check_output(ffmpeg_command, stderr=subprocess.STDOUT)
+        return playable_file
+    except Exception:
+        return audio_file
+
 def format_eas_message(eas_text):
     MAX_LINE_LENGTH = 35
     MAX_LINES_PER_PAGE = 13
@@ -350,45 +412,19 @@ def handle_commands():
                 num_pages = len(pages)
                 current_page = 0
                 try:
-                    audio_link = command[1]["audio_link"]
-                    local_audio_file = command[1]["local_audio_file"]
-
-                    if local_audio_file and os.path.isfile(local_audio_file):
-                        print("Playing local audio file.")
-                        thread = threading.Thread(target=play_audio, args=(local_audio_file,))
-                        thread.start()
-                        try:
-                            ffprobe_command = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", local_audio_file]
-                            audio_length = float(subprocess.check_output(ffprobe_command).strip())
-                            print(f"Audio length: {audio_length} seconds")
-                            threading.Timer(audio_length + 1, lambda: clear_alert()).start()
-                        except Exception as e:
-                            print("Error getting audio length:", e)
-                            threading.Timer(300.0, lambda: clear_alert()).start()
-
-                    elif audio_link and audio_link.startswith("http"):
-                        if os.name == "posix":
-                            audio_file = "/tmp/eas_audio.unknown"
-                        else:
-                            audio_file = os.path.join(os.getcwd(), "eas_audio.unknown")
-                        if os.environ.get("USE_AUTH"):
-                            print("Using authentication for audio download.")
-                            curl_command = ["curl", "--silent", "-o", audio_file, "-L", audio_link, "--retry", "3", "--retry-delay", "2", "--max-time", "15", "--header", "User-Agent: DASDEC-EAS-Client/1.0", "--header", "Authorization: Bearer " + os.environ.get("AUTH_TOKEN", "")]
-                        else:
-                            curl_command = ["curl", "--silent", "-o", audio_file, "-L", audio_link, "--retry", "3", "--retry-delay", "2", "--max-time", "15", "--header", "User-Agent: DASDEC-EAS-Client/1.0"]
-                        subprocess.run(curl_command, check=True)
-                        with open (audio_file, "rb") as f:
-                            if looks_like_plaintext(f.read):
-                                print("Downloaded audio file appears to be text, not audio. Maybe the server did not serve the audio correctly? Skipping playback.")
-                                return
-                        ffmpeg_command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", audio_file, "-f", "wav", audio_file + ".wav"]
-                        subprocess.run(ffmpeg_command, check=True)
-                        audio_file = audio_file + ".wav"
+                    raw_audio = command[1].get("raw_audio")
+                    if raw_audio:
+                        mime_type, audio_data = _decode_raw_audio(raw_audio)
+                        audio_ext = _audio_extension_for_mime(mime_type)
+                        audio_file = f"temp_alert_audio.{audio_ext}"
+                        with open(audio_file, "wb") as f:
+                            f.write(audio_data)
+                        playable_audio_file = _prepare_playable_audio_file(audio_file)
                         print("Playing audio from link.")
-                        thread = threading.Thread(target=play_audio, args=(audio_file,))
+                        thread = threading.Thread(target=play_audio, args=(playable_audio_file,))
                         thread.start()
                         try:
-                            ffprobe_command = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", audio_file]
+                            ffprobe_command = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", playable_audio_file]
                             audio_length = float(subprocess.check_output(ffprobe_command).strip())
                             print(f"Audio length: {audio_length} seconds")
                             threading.Timer(audio_length + 1, lambda: clear_alert()).start()
