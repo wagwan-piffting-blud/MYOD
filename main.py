@@ -8,12 +8,22 @@ import threading
 import traceback
 import subprocess
 import binascii
+import logging
+import uuid
 
 import tzlocal
 from EAS2Text import EAS2Text
 from dotenv import load_dotenv
 import pygame
 import control_panel
+
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    _stream_handler = logging.StreamHandler()
+    _stream_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    logger.addHandler(_stream_handler)
+logger.setLevel(logging.INFO)
+logger.propagate = False
 
 
 load_dotenv()  # Load environment variables from .env file
@@ -173,15 +183,42 @@ def audio_finished_callback():
     audio_finished = True
     print("Audio finished playing. Back to default page.")
 
-def play_audio(file_path):
+audio_playback_lock = threading.Lock()
+audio_playback_active = False
+pending_alert_queue = queue.Queue()
+
+def _safe_upload_id(upload_id):
+    safe_value = re.sub(r"[^A-Za-z0-9_.-]", "_", str(upload_id or "unknown"))
+    return safe_value or "unknown"
+
+def play_audio(file_path, cleanup_files=None):
+    global audio_playback_active
     try:
-        pygame.mixer.quit()
-        pygame.mixer.init()
-        pygame.mixer.music.load(file_path)
-        pygame.mixer.music.play()
-        pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
-    except Exception as e:
-        print("Error playing audio:", e)
+        subprocess.run(["ffplay", "-nodisp", "-autoexit", file_path], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        audio_finished_callback()
+    except Exception:
+        print("Error playing audio:", traceback.format_exc())
+    finally:
+        clear_alert()
+        if cleanup_files:
+            for cleanup_file in cleanup_files:
+                try:
+                    if cleanup_file and os.path.exists(cleanup_file):
+                        os.remove(cleanup_file)
+                except Exception:
+                    pass
+        with audio_playback_lock:
+            audio_playback_active = False
+
+def _start_audio_playback(file_path, cleanup_files=None):
+    global audio_playback_active
+    with audio_playback_lock:
+        if audio_playback_active:
+            return False
+        audio_playback_active = True
+    thread = threading.Thread(target=play_audio, args=(file_path, cleanup_files), daemon=True)
+    thread.start()
+    return True
 
 def _decode_raw_audio(raw_audio):
     if not raw_audio:
@@ -220,8 +257,7 @@ def _audio_extension_for_mime(mime_type):
         return "m4a"
     return "bin"
 
-def _prepare_playable_audio_file(audio_file):
-    playable_file = "temp_alert_audio_playback.wav"
+def _prepare_playable_audio_file(audio_file, playable_file):
     ffmpeg_command = [
         "ffmpeg",
         "-y",
@@ -242,6 +278,77 @@ def _prepare_playable_audio_file(audio_file):
         return playable_file
     except Exception:
         return audio_file
+
+def _display_alert(alert_data):
+    global pages, num_pages, current_page, last_page_switch_time, TIME_ZONE
+    time.sleep(3)
+    print("GUI: Displaying Alert")
+    try:
+        msg = EAS2Text(alert_data["headers"], timeZoneTZ=TIME_ZONE)
+    except Exception as e:
+        print("Error parsing EAS message:", e)
+        return
+
+    desc = alert_data["description"]
+
+    orgText = msg.orgText
+    orgText = orgText.replace("An EAS Participant", "A broadcast or cable system")
+
+    msgFrom = ".\n"
+    if "Message from" not in desc:
+        msgFrom = ".\nMessage from " + msg.callsign + ".\n"
+
+    text = (str.upper(orgText) +
+            "\nhas issued " + str.upper(msg.evntText) +
+            "\nfor the following counties or\nareas:\n" +
+            ";\n".join(msg.FIPSText) +
+            ";\nat " + msg.startTime.strftime("%I:%M %p") +
+            "\non " + str.upper(msg.startTime.strftime("%b %d, %Y")) +
+            "\nEffective until " +
+            msg.endTime.strftime("%I:%M %p") +
+            msgFrom +
+            desc)
+    pages = format_eas_message(text)
+    print(pages)
+    num_pages = len(pages)
+    current_page = 0
+
+    try:
+        raw_audio = alert_data.get("raw_audio")
+        upload_id = alert_data.get("upload_id") or "unknown"
+        if raw_audio:
+            mime_type, audio_data = _decode_raw_audio(raw_audio)
+            audio_ext = _audio_extension_for_mime(mime_type)
+            file_suffix = f"{_safe_upload_id(upload_id)}_{time.time_ns()}_{uuid.uuid4().hex[:8]}"
+            audio_file = f"temp_alert_audio_{file_suffix}.{audio_ext}"
+            playback_file = f"temp_alert_audio_playback_{file_suffix}.wav"
+
+            with open(audio_file, "wb") as f:
+                f.write(audio_data)
+
+            playable_audio_file = _prepare_playable_audio_file(audio_file, playback_file)
+            print("Playing audio from link.")
+            _start_audio_playback(
+                playable_audio_file,
+                cleanup_files=(audio_file, playback_file),
+            )
+        else:
+            print("No audio link or file provided.")
+            threading.Timer(3.0, lambda: clear_alert()).start()
+    except Exception:
+        print("Error loading audio:", traceback.format_exc())
+
+    last_page_switch_time = time.time()
+
+def _play_next_alert_if_idle():
+    with audio_playback_lock:
+        if audio_playback_active:
+            return
+    try:
+        alert_data = pending_alert_queue.get_nowait()
+    except queue.Empty:
+        return
+    _display_alert(alert_data)
 
 def format_eas_message(eas_text):
     MAX_LINE_LENGTH = 35
@@ -378,65 +485,8 @@ def handle_commands():
                 pass
 
             elif command[0] == "DISPLAY_ALERT":
-                time.sleep(3)
-                print("GUI: Displaying Alert")
-                try:
-                    msg = EAS2Text(command[1]["headers"], timeZoneTZ=TIME_ZONE)
-                except Exception as e:
-                    print("Error parsing EAS message:", e)
-                    return
-
-                desc = command[1]["description"]
-
-                orgText = msg.orgText
-                orgText = orgText.replace("An EAS Participant", "A broadcast or cable system")
-
-                msgFrom = ".\n"
-
-                if "Message from" not in desc:
-                    msgFrom = ".\nMessage from "+msg.callsign+".\n"
-
-                text = (str.upper(orgText) +
-                        "\nhas issued " + str.upper(msg.evntText) +
-                        "\nfor the following counties or\nareas:\n" +
-                        ";\n".join(msg.FIPSText) +
-                        ";\nat " + msg.startTime.strftime("%I:%M %p") +
-                        "\non " + str.upper(msg.startTime.strftime("%b %d, %Y")) +
-                        "\nEffective until " +
-                        msg.endTime.strftime("%I:%M %p") +
-                        msgFrom +
-                        desc)
-                # print(text)
-                pages = format_eas_message(text)
-                print(pages)
-                num_pages = len(pages)
-                current_page = 0
-                try:
-                    raw_audio = command[1].get("raw_audio")
-                    if raw_audio:
-                        mime_type, audio_data = _decode_raw_audio(raw_audio)
-                        audio_ext = _audio_extension_for_mime(mime_type)
-                        audio_file = f"temp_alert_audio.{audio_ext}"
-                        with open(audio_file, "wb") as f:
-                            f.write(audio_data)
-                        playable_audio_file = _prepare_playable_audio_file(audio_file)
-                        print("Playing audio from link.")
-                        thread = threading.Thread(target=play_audio, args=(playable_audio_file,))
-                        thread.start()
-                        try:
-                            ffprobe_command = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", playable_audio_file]
-                            audio_length = float(subprocess.check_output(ffprobe_command).strip())
-                            print(f"Audio length: {audio_length} seconds")
-                            threading.Timer(audio_length + 1, lambda: clear_alert()).start()
-                        except Exception as e:
-                            print("Error getting audio length:", e)
-                            threading.Timer(300.0, lambda: clear_alert()).start()
-                    else:
-                        print("No audio link or file provided.")
-
-                except Exception as e:
-                    print("Error loading audio:", traceback.format_exc())
-                last_page_switch_time = time.time()
+                pending_alert_queue.put(command[1])
+                logger.info("Alert queued pending_alerts=%d", pending_alert_queue.qsize())
 
             elif command[0] == "CLEAR_ALERT":
                 print("GUI: Clearing Alert")
@@ -448,6 +498,7 @@ def handle_commands():
             command_queue.task_done() # Mark as handled
     except queue.Empty:
         pass # No commands, continue
+    _play_next_alert_if_idle()
 
 def clear_alert():
     global pages, num_pages, current_page, last_page_switch_time

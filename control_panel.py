@@ -74,6 +74,7 @@ def _handle_chunked_send():
     chunk = _request_value("raw_audio_chunk")
     if chunk is None:
         chunk = request.get_data(cache=False, as_text=True) or ""
+    chunk_size = len(chunk)
 
     if len(chunk) > MAX_SINGLE_CHUNK_B64_BYTES:
         return jsonify({
@@ -111,8 +112,9 @@ def _handle_chunked_send():
                 state["mime_type"] = mime_type
 
         state["updated_at"] = time.time()
-        state["size"] += len(chunk)
-        if state["size"] > MAX_CHUNKED_AUDIO_B64_BYTES:
+        state["size"] += chunk_size
+        total_size = state["size"]
+        if total_size > MAX_CHUNKED_AUDIO_B64_BYTES:
             overflow_path = state["path"]
             del chunk_uploads[upload_id]
             try:
@@ -124,6 +126,14 @@ def _handle_chunked_send():
                 "max_audio_b64_bytes": MAX_CHUNKED_AUDIO_B64_BYTES,
             }), 413
         target_path = state["path"]
+
+    app.logger.info(
+        "Chunk upload received upload_id=%s chunk_size=%d total_size=%d final=%s",
+        upload_id,
+        chunk_size,
+        total_size,
+        finalize,
+    )
 
     if chunk:
         try:
@@ -159,7 +169,15 @@ def _handle_chunked_send():
     if raw_audio and not raw_audio.startswith("data:"):
         raw_audio = f"data:{state['mime_type']};base64,{raw_audio}"
 
+    app.logger.info(
+        "Chunk upload dispatching to main.py upload_id=%s total_size=%d final=%s",
+        upload_id,
+        state["size"],
+        True,
+    )
+
     command_queue.put(("DISPLAY_ALERT", {
+        "upload_id": upload_id,
         "headers": state["headers"],
         "description": state["description"],
         "raw_audio": raw_audio or None,
