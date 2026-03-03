@@ -293,6 +293,7 @@ def _display_alert(alert_data):
 
     orgText = msg.orgText
     orgText = orgText.replace("An EAS Participant", "A broadcast or cable system")
+    orgText = re.sub(r"the national weather service in.*", "the national weather service", orgText, flags=re.IGNORECASE)
 
     msgFrom = ".\n"
     if "Message from" not in desc:
