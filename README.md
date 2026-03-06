@@ -41,13 +41,10 @@ python main.py
 5. Open your web browser and navigate to `http://localhost:5000` to access the control panel.
 
 ## EAS_Listener support
-This fork also includes support for EAS_Listener, allowing you to receive and process EAS alerts directly through the DASDEC. To enable this feature, ensure that you have the EAS_Listener Docker container set up and configured to send alerts to the MYOD application. You can find more information about EAS_Listener and how to set it up on its [GitHub repository](https://github.com/wagwan-piffting-blud/EAS_Listener). Make sure to configure the EAS_Listener to send alerts to the correct endpoint in the MYOD application (e.g., `http://localhost:5000/send`), the endpoint will always be `/send`, and configure your .env file for MYOD to handle incoming alerts with your authentication token, setting USE_AUTH to `true`.
+This fork also includes support for EAS_Listener, allowing you to receive and process EAS alerts directly through the DASDEC. To enable this feature, ensure that you have the EAS_Listener Docker container set up and configured to send alerts to the MYOD application. You can find more information about EAS_Listener and how to set it up on its [GitHub repository](https://github.com/wagwan-piffting-blud/EAS_Listener). Make sure to configure the EAS_Listener to send alerts to the correct endpoint in the MYOD application (e.g., `http://localhost:5000/send`), the endpoint will always be `/send`.
 
-Example .env configuration inside MYOD for EAS_Listener support:
-```
-USE_AUTH=true
-AUTH_TOKEN=dGVzdDp0ZXN0 # This is a base64 encoded token for "test:test". Replace with your actual token for authentication with EAS_Listener.
-```
+## E2T-NG support
+This fork also includes support for EAS2Text-NG, allowing you to parse EAS messages and display them in a human-readable format on the DASDEC. The EAS2Text-NG library is included as a direct file dependency in this project, so you don't need to install it separately. The library is used to parse EAS messages and extract relevant information such as the event code, location, and expiration time. This information is then displayed on the DASDEC screen in a clear and concise manner that aligns with the true DASDEC ENDEC style.
 
 ## License
 This project is licensed under the GNU General Public License v3.0 License like the parent repo this fork is under - see the [LICENSE](LICENSE) file for details.

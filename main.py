@@ -10,9 +10,18 @@ import subprocess
 import binascii
 import logging
 import uuid
+from datetime import timedelta
+from types import SimpleNamespace
 
 import tzlocal
-from EAS2Text import EAS2Text
+from EAS2Text_NG import (
+    _build_fips_context as eas_build_fips_context,
+    _lookup_same as eas_lookup_same,
+    _process_das_fips_string as eas_process_das_fips_string,
+    _resolve_output_timezone as eas_resolve_output_timezone,
+    _to_output_timezone as eas_to_output_timezone,
+    parse_header as parse_eas_header,
+)
 from dotenv import load_dotenv
 import pygame
 import control_panel
@@ -284,7 +293,34 @@ def _display_alert(alert_data):
     time.sleep(3)
     print("GUI: Displaying Alert")
     try:
-        msg = EAS2Text(alert_data["headers"], timeZoneTZ=TIME_ZONE)
+        parsed = parse_eas_header(alert_data["headers"])
+        output_tz = eas_resolve_output_timezone(TIME_ZONE)
+        start_time_utc = parsed.start_time
+        end_time_utc = start_time_utc + timedelta(
+            hours=parsed.duration.hours,
+            minutes=parsed.duration.minutes,
+        )
+
+        org_text = eas_lookup_same("ORGS", parsed.originator) or parsed.originator
+        if parsed.originator == "EAS":
+            org_text = "A broadcast or cable system"
+        elif parsed.originator == "CIV":
+            org_text = "A civil authority"
+        elif parsed.originator == "PEP":
+            org_text = "THE PRIMARY ENTRY POINT EAS SYSTEM"
+
+        event_text = eas_lookup_same("EVENTS", parsed.event_code) or parsed.event_code
+        fips_context = eas_build_fips_context(parsed.locations, False)
+        das_fips, _ = eas_process_das_fips_string(fips_context.str_fips, combine_same_state=True)
+
+        msg = SimpleNamespace(
+            orgText=org_text,
+            evntText=event_text,
+            FIPSText=[entry.strip() for entry in das_fips.rstrip(";").split(";") if entry.strip()],
+            startTime=eas_to_output_timezone(start_time_utc, output_tz),
+            endTime=eas_to_output_timezone(end_time_utc, output_tz),
+            callsign=parsed.senderid.strip(),
+        )
     except Exception as e:
         print("Error parsing EAS message:", e)
         return

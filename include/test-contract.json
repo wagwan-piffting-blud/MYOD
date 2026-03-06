@@ -1,0 +1,27 @@
+{
+    "version": 1,
+    "name": "E2T-NG Cross-Language Acceptance Contract",
+    "shared_vectors_file": "include/unit-tests.json",
+    "requirements": [
+        {
+            "id": "shared_exact_vectors_utc",
+            "description": "Each implementation must match the shared unit vectors exactly when timezone is UTC."
+        },
+        {
+            "id": "invalid_header_rejection",
+            "description": "Each implementation must reject malformed headers with the canonical invalid header message."
+        },
+        {
+            "id": "language_unit_suites",
+            "description": "The language-specific unit suites must all pass with zero failures."
+        }
+    ],
+    "invalid_header_message": "Invalid EAS header format",
+    "invalid_headers": [
+        "",
+        "ZCZC-WXR-SVR-010001+0030-0010000-KNHC/NWS",
+        "ZCZC-WX-SVR-010001+0030-0010000-KNHC/NWS-",
+        "ZCZC-WXR-SVR-010001+030-0010000-KNHC/NWS-",
+        "INVALID HEADER"
+    ]
+}

@@ -1,0 +1,47 @@
+[
+    {
+        "header": "ZCZC-WXR-SVR-010001+0030-0010600-KNHC/NWS-",
+        "endec_mode": null,
+        "output": "The National Weather Service has issued a Severe Thunderstorm Warning for Kent, Delaware; beginning at 6:00 AM on January 1st, __CURRENT_YEAR__ and ending at 6:30 AM on January 1st, __CURRENT_YEAR__. Message from KNHC/NWS."
+    },
+    {
+        "header": "ZCZC-EAS-RWT-004025-004013-004001-004003-004005-004007-004009-004011-004012-004015-004017-004019-004021-004023-004027+0015-1880212-WSLF-",
+        "endec_mode": "TFT",
+        "output": "A REQUIRED WEEKLY TEST HAS BEEN ISSUED FOR THE FOLLOWING COUNTIES/AREAS: YAVAPAI AZ, MARICOPA AZ, APACHE AZ, COCHISE AZ, COCONINO AZ, GILA AZ, GRAHAM AZ, GREENLEE AZ, LA PAZ AZ, MOHAVE AZ, NAVAJO AZ, PIMA AZ, PINAL AZ, SANTA CRUZ AZ, AND YUMA AZ AT 2:12 AM ON JUL 7, __CURRENT_YEAR__ EFFECTIVE UNTIL 2:27 AM. MESSAGE FROM WSLF."
+    },
+    {
+        "header": "ZCZC-EAS-RMT-031000+0100-0010459-KMTV TV -",
+        "endec_mode": "SAGE",
+        "output": "An EAS Participant has issued a Required Monthly Test for all of Nebraska beginning at 04:59 am and ending at 05:59 am (KMTV TV)"
+    },
+    {
+        "header": "ZCZC-WXR-TOR-019119-019167-046083+0015-2002030-KNQA/NWS-",
+        "endec_mode": "TRILITHIC6",
+        "output": "The National Weather Service has issued a Tornado Warning for the following counties: Lyon IA - Sioux IA - Lincoln SD. Effective Until 07/19/__CURRENT_YEAR_SHORT__ 20:45:00 __TZ_DAYLIGHT__."
+    },
+    {
+        "header": "ZCZC-WXR-SVA-031067-031151-031109-031159+0600-2240240-ItsEASy -",
+        "endec_mode": "TRILITHIC8PLUS",
+        "output": "The National Weather Service has issued a Severe Thunderstorm Watch for the following counties: Gage NE - Saline NE - Lancaster NE - Seward NE. Effective Until 08/12/__CURRENT_YEAR_SHORT__ 08:40:00 __TZ_DAYLIGHT__.  ItsEASy"
+    },
+    {
+        "header": "ZCZC-WXR-TOR-026065-026075+0100-1492154-DASDEC1 -",
+        "endec_mode": "DAS1",
+        "output": "THE NATIONAL WEATHER SERVICE HAS ISSUED A TORNADO WARNING FOR THE FOLLOWING COUNTIES/AREAS: INGHAM, MI; JACKSON, MI; AT 9:54 PM ON MAY 29, __CURRENT_YEAR__ EFFECTIVE UNTIL 10:54 PM. MESSAGE FROM DASDEC1."
+    },
+    {
+        "header": "ZCZC-PEP-NPT-000000-011000+0030-2191920-WHAM 1  -",
+        "endec_mode": "DAS2PLUS",
+        "output": "THE PRIMARY ENTRY POINT EAS SYSTEM has issued A NATIONAL PERIODIC TEST for the following counties or areas: United States; District of Columbia, DC; at 7:20 PM on AUG 7, __CURRENT_YEAR__ Effective until 7:50 PM. Message from WHAM 1."
+    },
+    {
+        "header": "ZCZC-PEP-NPT-000000+0030-2761720-VAST    -",
+        "endec_mode": "GORMAN",
+        "output": "A NATIONAL PERIODIC TEST HAS BEEN ISSUED FOR THE FOLLOWING COUNTIES/AREAS: UNITED STATES AT 5:20 PM ON OCT 3, __CURRENT_YEAR__ EFFECTIVE UNTIL 5:50 PM. MESSAGE FROM VAST."
+    },
+    {
+        "header": "ZCZC-CIV-BLU-026065-026075+0100-1492154-KSPATROL-",
+        "endec_mode": "JSON",
+        "output": "{\"event_code\":\"a Blue Alert\",\"originator\":\"A Civil Authority\",\"fips_codes\":[\"026065\",\"026075\"],\"start_time\":1780091640,\"end_time\":1780095240,\"sender\":\"KSPATROL\"}"
+    }
+]
